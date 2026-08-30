@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_session
 from .models import SocialPostModel
+from .runtime_adapter import SocialRuntimeReadClient
 
 app = FastAPI(title="Codestra Social API", version="0.2.0")
 SOCIAL_PUBLISHING_ENABLED = os.getenv("SOCIAL_PUBLISHING_ENABLED", "false").lower() == "true"
@@ -63,4 +64,16 @@ async def publish(post_id: UUID, session: AsyncSession = Depends(get_session)) -
         raise HTTPException(status_code=409, detail="post_not_approved")
     if not SOCIAL_PUBLISHING_ENABLED:
         raise HTTPException(status_code=423, detail="social_publishing_disabled")
-    raise HTTPException(status_code=501, detail="runtime_adapter_not_implemented")
+    raise HTTPException(status_code=501, detail="runtime_publish_not_implemented")
+
+@app.get("/v1/runtime/posts/{runtime_post_id}")
+async def runtime_post_snapshot(runtime_post_id: str, correlation_id: str | None = None) -> dict[str, object] | None:
+    if not SOCIAL_READ_SYNC_ENABLED:
+        return None
+    return await SocialRuntimeReadClient().get_post(runtime_post_id, correlation_id)
+
+@app.get("/v1/runtime/posts/{runtime_post_id}/metrics")
+async def runtime_post_metrics(runtime_post_id: str, correlation_id: str | None = None) -> dict[str, object] | None:
+    if not SOCIAL_READ_SYNC_ENABLED:
+        return None
+    return await SocialRuntimeReadClient().get_metrics(runtime_post_id, correlation_id)
