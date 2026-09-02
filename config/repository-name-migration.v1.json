@@ -16,8 +16,9 @@
     "all_inventoried_integrations_require_post_rename_readback": true,
     "runtime_repository_must_remain_separate": true,
     "runtime_repository_must_remain_unchanged": true,
-    "success_path_must_restore_freeze_state": true,
-    "rollback_path_must_restore_freeze_state": true,
+    "prechange_operation_state_must_be_recorded": true,
+    "success_path_must_restore_prechange_operation_state": true,
+    "rollback_path_must_restore_prechange_operation_state": true,
     "rename_authorizes_deployment": false,
     "rename_authorizes_publishing": false
   }
