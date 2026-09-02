@@ -135,6 +135,20 @@ def test_freshness_passes_current_marker_and_fails_stale_marker():
         (root / "LAST_SUCCESS").write_text(current + "\n")
         env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}", "CODESTRA_RECOVERY_ROOT": str(root), "CODESTRA_RECOVERY_MAX_AGE_SECONDS": "120", "CODESTRA_BACKUP_GPG_SIGNING_FINGERPRINT": "A" * 40, "MOCK_SIGNER": "A" * 40}
         assert subprocess.run([str(FRESHNESS)], env=env, capture_output=True).returncode == 0
+        complete_checksums = (artifact / "SHA256SUMS").read_text()
+        (artifact / "SHA256SUMS").write_text(
+            next(
+                line
+                for line in complete_checksums.splitlines(keepends=True)
+                if line.endswith("  METADATA\n")
+            )
+        )
+        incomplete = subprocess.run(
+            [str(FRESHNESS)], env=env, text=True, capture_output=True
+        )
+        assert incomplete.returncode == 1
+        assert "must cover each backup artifact exactly once" in incomplete.stderr
+        (artifact / "SHA256SUMS").write_text(complete_checksums)
         wrong_signer = {**env, "CODESTRA_BACKUP_GPG_SIGNING_FINGERPRINT": "B" * 40}
         assert subprocess.run([str(FRESHNESS)], env=wrong_signer, capture_output=True).returncode == 1
         (artifact / "database.dump.gpg").write_text("corrupt")

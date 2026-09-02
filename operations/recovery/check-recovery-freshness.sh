@@ -15,6 +15,16 @@ if [[ -d "$artifact" ]]; then
   for file in database.dump.gpg METADATA SIGNED-MANIFEST SIGNED-MANIFEST.sig SHA256SUMS; do
     [[ -f "$artifact/$file" ]] || { echo "backup evidence is incomplete" >&2; exit 1; }
   done
+  checksum_entries=$(awk '
+    NF != 2 || length($1) != 64 || $1 !~ /^[[:xdigit:]]+$/ ||
+    $2 !~ /^(database[.]dump[.]gpg|METADATA|SIGNED-MANIFEST|SIGNED-MANIFEST[.]sig)$/ { exit 2 }
+    { print $2 }
+  ' "$artifact/SHA256SUMS") || { echo "checksum manifest format is invalid" >&2; exit 1; }
+  expected_checksum_entries=$'METADATA\nSIGNED-MANIFEST\nSIGNED-MANIFEST.sig\ndatabase.dump.gpg'
+  [[ "$(printf '%s\n' "$checksum_entries" | LC_ALL=C sort)" == "$expected_checksum_entries" ]] || {
+    echo "checksum manifest must cover each backup artifact exactly once" >&2
+    exit 1
+  }
   (cd "$artifact" && sha256sum -c SHA256SUMS >/dev/null)
   signature_status=$(gpg --batch --status-fd=1 --verify "$artifact/SIGNED-MANIFEST.sig" "$artifact/SIGNED-MANIFEST" 2>/dev/null)
   valid_fingerprint=$(awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" {print toupper($3)}' <<<"$signature_status")
