@@ -41,6 +41,14 @@ def test_source_contract_is_encrypted_isolated_and_schema_aware():
         assert table in RESTORE
     for boundary in ("external_account_id", "runtime_post_id", "platform"):
         assert boundary in RESTORE
+    for checkpoint_column in (
+        "cursor_value",
+        "last_success_at",
+        "last_attempt_at",
+        "last_error",
+    ):
+        assert f"('social_sync_checkpoints', '{checkpoint_column}')" in RESTORE
+    assert '[[ "$column_count" == "13" ]]' in RESTORE
     assert "i.indisunique and i.indisvalid and i.indisready" in RESTORE
     assert "cardinality(e.columns)" in RESTORE
     assert "pg_get_expr(i.indpred, i.indrelid)=e.predicate" in RESTORE

@@ -70,11 +70,30 @@ SQL
 )
 [[ "$table_count" == "4" ]] || { echo "required table verification failed" >&2; exit 1; }
 column_count=$(psql -XAtq -v ON_ERROR_STOP=1 <<'SQL'
-select count(*) from information_schema.columns where table_schema='public'
-and table_name='social_posts' and column_name in ('tenant_id','account_id','state','runtime_post_id','last_reconciled_at');
+with expected(table_name, column_name) as (values
+  ('social_posts', 'tenant_id'),
+  ('social_posts', 'account_id'),
+  ('social_posts', 'state'),
+  ('social_posts', 'runtime_post_id'),
+  ('social_posts', 'last_reconciled_at'),
+  ('social_sync_checkpoints', 'id'),
+  ('social_sync_checkpoints', 'tenant_id'),
+  ('social_sync_checkpoints', 'platform'),
+  ('social_sync_checkpoints', 'external_account_id'),
+  ('social_sync_checkpoints', 'cursor_value'),
+  ('social_sync_checkpoints', 'last_success_at'),
+  ('social_sync_checkpoints', 'last_attempt_at'),
+  ('social_sync_checkpoints', 'last_error')
+)
+select count(*) from expected e where exists (
+  select 1 from information_schema.columns c
+  where c.table_schema='public'
+    and c.table_name=e.table_name
+    and c.column_name=e.column_name
+);
 SQL
 )
-[[ "$column_count" == "5" ]] || { echo "required column verification failed" >&2; exit 1; }
+[[ "$column_count" == "13" ]] || { echo "required column verification failed" >&2; exit 1; }
 unique_index_count=$(psql -XAtq -v ON_ERROR_STOP=1 <<'SQL'
 with expected(table_name, columns, predicate) as (values
   ('social_accounts', array['tenant_id','platform','external_account_id']::text[], null::text),
