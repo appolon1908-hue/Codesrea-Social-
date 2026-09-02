@@ -9,8 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .db import get_session
 from .models import SocialPostModel
 from .runtime_adapter import SocialRuntimeReadClient
+from .telemetry import audit_event, configure_telemetry, install_correlation_middleware
 
 app = FastAPI(title="Codestra Social API", version="0.2.0")
+install_correlation_middleware(app)
+TELEMETRY_EXPORT_ENABLED = configure_telemetry(app)
 SOCIAL_PUBLISHING_ENABLED = os.getenv("SOCIAL_PUBLISHING_ENABLED", "false").lower() == "true"
 SOCIAL_READ_SYNC_ENABLED = os.getenv("SOCIAL_READ_SYNC_ENABLED", "false").lower() == "true"
 
@@ -38,7 +41,7 @@ def health() -> dict[str, object]:
 
 @app.get("/v1/capabilities")
 def capabilities() -> dict[str, object]:
-    return {"accounts": True, "posts": True, "scheduling": True, "approvals": True, "engagement_sync": SOCIAL_READ_SYNC_ENABLED, "publishing": SOCIAL_PUBLISHING_ENABLED}
+    return {"accounts": True, "posts": True, "scheduling": True, "approvals": True, "engagement_sync": SOCIAL_READ_SYNC_ENABLED, "publishing": SOCIAL_PUBLISHING_ENABLED, "correlation_ids": True, "telemetry_export": TELEMETRY_EXPORT_ENABLED}
 
 @app.post("/v1/posts", response_model=Post, status_code=status.HTTP_201_CREATED)
 async def create_post(body: PostCreate, session: AsyncSession = Depends(get_session)) -> SocialPostModel:
@@ -46,6 +49,7 @@ async def create_post(body: PostCreate, session: AsyncSession = Depends(get_sess
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    audit_event("post_recorded", post_id=str(row.id), state=row.state)
     return row
 
 @app.get("/v1/posts/{post_id}", response_model=Post)
@@ -61,19 +65,21 @@ async def publish(post_id: UUID, session: AsyncSession = Depends(get_session)) -
     if row is None:
         raise HTTPException(status_code=404, detail="post_not_found")
     if row.state != PostState.APPROVED.value:
+        audit_event("publish_rejected", post_id=str(row.id), reason="post_not_approved")
         raise HTTPException(status_code=409, detail="post_not_approved")
     if not SOCIAL_PUBLISHING_ENABLED:
+        audit_event("publish_rejected", post_id=str(row.id), reason="publishing_disabled")
         raise HTTPException(status_code=423, detail="social_publishing_disabled")
     raise HTTPException(status_code=501, detail="runtime_publish_not_implemented")
 
 @app.get("/v1/runtime/posts/{runtime_post_id}")
-async def runtime_post_snapshot(runtime_post_id: str, correlation_id: str | None = None) -> dict[str, object] | None:
+async def runtime_post_snapshot(runtime_post_id: str) -> dict[str, object] | None:
     if not SOCIAL_READ_SYNC_ENABLED:
         return None
-    return await SocialRuntimeReadClient().get_post(runtime_post_id, correlation_id)
+    return await SocialRuntimeReadClient().get_post(runtime_post_id)
 
 @app.get("/v1/runtime/posts/{runtime_post_id}/metrics")
-async def runtime_post_metrics(runtime_post_id: str, correlation_id: str | None = None) -> dict[str, object] | None:
+async def runtime_post_metrics(runtime_post_id: str) -> dict[str, object] | None:
     if not SOCIAL_READ_SYNC_ENABLED:
         return None
-    return await SocialRuntimeReadClient().get_metrics(runtime_post_id, correlation_id)
+    return await SocialRuntimeReadClient().get_metrics(runtime_post_id)
