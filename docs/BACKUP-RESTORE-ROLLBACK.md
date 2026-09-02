@@ -5,15 +5,21 @@ These source controls do not authorize deployment or production delivery.
 Before a migration or rollout, an authorized operator runs the recovery backup
 with libpq `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and an owner-protected
 `PGPASSFILE`, a root-owned mode-0700 directory, exact release SHA, exact
-image digest, and approved OpenPGP recovery recipient. It validates a
-custom-format dump, encrypts it, destroys the temporary plaintext, and
-atomically publishes relocatable checksums and `LAST_SUCCESS`. Database
+image digest, approved OpenPGP recovery recipient, and pinned backup-signing
+fingerprint. It validates a
+custom-format dump in a verified tmpfs work root, encrypts it, destroys the
+temporary plaintext, and
+atomically publishes a signed manifest, relocatable checksums, and
+`LAST_SUCCESS`. Freshness and restore accept only the pinned signing identity
+and bind the marker to signature-protected metadata. Database
 credentials are never passed as process arguments.
 
 Restore verification requires `ALLOW_ISOLATED_RESTORE=true`, a disposable
-database whose name contains `restore`, and an identity different from the
+empty database whose name contains `restore`, a verified tmpfs restore work
+root, and an identity different from the
 source backup. The verifier checks artifact hashes, restores with
-`--exit-on-error`, and proves all four social tables, Stage 5 post/reconciliation
+`--exit-on-error`, requires the expected release SHA and image digest, and proves
+all four social tables, Stage 5 post/reconciliation
 columns, exact tenant/account uniqueness, exact sync-checkpoint uniqueness, and
 the partial runtime-post uniqueness predicate before publishing
 checksum-bearing evidence.

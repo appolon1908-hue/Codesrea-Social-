@@ -3,16 +3,25 @@ set -euo pipefail
 
 root=${CODESTRA_RECOVERY_ROOT:?recovery root is required}
 max_age=${CODESTRA_RECOVERY_MAX_AGE_SECONDS:?maximum age is required}
+signer=${CODESTRA_BACKUP_GPG_SIGNING_FINGERPRINT:-}
 [[ "$max_age" =~ ^[1-9][0-9]*$ ]] || { echo "maximum age must be a positive integer" >&2; exit 2; }
 [[ -f "$root/LAST_SUCCESS" ]] || { echo "recovery success marker is missing" >&2; exit 1; }
 stamp=$(tr -d '\r\n' <"$root/LAST_SUCCESS")
 [[ "$stamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { echo "invalid recovery success marker" >&2; exit 1; }
 artifact="$root/$stamp"
 if [[ -d "$artifact" ]]; then
-  for file in database.dump.gpg METADATA SHA256SUMS; do
+  [[ "$signer" =~ ^[A-Fa-f0-9]{40}$ ]] || { echo "backup signing fingerprint is invalid" >&2; exit 2; }
+  signer=${signer^^}
+  for file in database.dump.gpg METADATA SIGNED-MANIFEST SIGNED-MANIFEST.sig SHA256SUMS; do
     [[ -f "$artifact/$file" ]] || { echo "backup evidence is incomplete" >&2; exit 1; }
   done
   (cd "$artifact" && sha256sum -c SHA256SUMS >/dev/null)
+  signature_status=$(gpg --batch --status-fd=1 --verify "$artifact/SIGNED-MANIFEST.sig" "$artifact/SIGNED-MANIFEST" 2>/dev/null)
+  valid_fingerprint=$(awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" {print toupper($3)}' <<<"$signature_status")
+  [[ "$valid_fingerprint" == "$signer" ]] || { echo "backup signature verification failed" >&2; exit 1; }
+  (cd "$artifact" && sha256sum -c SIGNED-MANIFEST >/dev/null)
+  metadata_stamp=$(sed -n 's/^STAMP=//p' "$artifact/METADATA")
+  [[ "$metadata_stamp" == "$stamp" ]] || { echo "backup marker does not match verified metadata" >&2; exit 1; }
 else
   result_name="RESTORE-RESULT-$stamp"
   artifact="$root/$result_name"
@@ -26,4 +35,3 @@ age=$((now_epoch - stamp_epoch))
 (( age >= -300 )) || { echo "recovery marker is unreasonably in the future" >&2; exit 1; }
 (( age <= max_age )) || { echo "recovery evidence is stale age_seconds=$age" >&2; exit 1; }
 echo "recovery_freshness=PASS age_seconds=$age max_age_seconds=$max_age"
-
