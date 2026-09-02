@@ -28,7 +28,11 @@ def test_repository_name_migration_is_stable_and_pre_cutover() -> None:
     assert policy["target_repository_forbidden_in_automation_before_cutover"] is True
     assert policy["same_repository_id_required_after_cutover"] is True
     assert policy["historical_evidence_immutable"] is True
+    assert policy["all_inventoried_integrations_require_post_rename_readback"] is True
     assert policy["runtime_repository_must_remain_separate"] is True
+    assert policy["runtime_repository_must_remain_unchanged"] is True
+    assert policy["success_path_must_restore_freeze_state"] is True
+    assert policy["rollback_path_must_restore_freeze_state"] is True
     assert policy["rename_authorizes_deployment"] is False
     assert policy["rename_authorizes_publishing"] is False
 
