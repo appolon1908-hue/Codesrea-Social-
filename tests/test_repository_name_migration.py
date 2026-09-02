@@ -31,8 +31,9 @@ def test_repository_name_migration_is_stable_and_pre_cutover() -> None:
     assert policy["all_inventoried_integrations_require_post_rename_readback"] is True
     assert policy["runtime_repository_must_remain_separate"] is True
     assert policy["runtime_repository_must_remain_unchanged"] is True
-    assert policy["success_path_must_restore_freeze_state"] is True
-    assert policy["rollback_path_must_restore_freeze_state"] is True
+    assert policy["prechange_operation_state_must_be_recorded"] is True
+    assert policy["success_path_must_restore_prechange_operation_state"] is True
+    assert policy["rollback_path_must_restore_prechange_operation_state"] is True
     assert policy["rename_authorizes_deployment"] is False
     assert policy["rename_authorizes_publishing"] is False
 
@@ -55,10 +56,12 @@ def test_human_authority_documents_preserve_runtime_boundary() -> None:
         "PACKAGES_AND_GHCR=PASS|N/A",
         "DEPLOY_KEYS_APPS_WEBHOOKS=PASS|N/A",
         "DOWNSTREAM_CONSUMERS=PASS",
-        "MERGES_UNFROZEN=PASS",
-        "RELEASE_DISPATCH_UNFROZEN=PASS",
-        "WORKFLOW_DISPATCH_UNFROZEN=PASS",
-        "ROLLBACK_UNFREEZE=PASS|N/A",
+        "PRECHANGE_MERGE_STATE=ENABLED|DISABLED",
+        "POSTCHANGE_MERGE_STATE=ENABLED|DISABLED",
+        "MERGE_STATE_RESTORED=PASS",
+        "RELEASE_DISPATCH_STATE_RESTORED=PASS|N/A",
+        "WORKFLOW_DISPATCH_STATE_RESTORED=PASS|N/A",
+        "ROLLBACK_OPERATION_STATE_RESTORED=PASS|N/A",
         "SOCIAL_RUNTIME_REPOSITORY_CHANGED=NO",
         "SOCIAL_POSTS_PUBLISHED=0",
         "PROVIDER_WRITES_ENABLED=NO_CHANGE",
@@ -66,5 +69,6 @@ def test_human_authority_documents_preserve_runtime_boundary() -> None:
     ):
         assert required in runbook
 
-    assert "Do not leave the repository frozen." in runbook
-    assert "A successful rollback must not leave normal repository operations frozen." in runbook
+    assert "Do not enable a mechanism that was disabled before the cutover" in runbook
+    assert "same enabled, disabled, or unavailable state" in runbook
+    assert "UNFROZEN=" not in runbook
