@@ -45,7 +45,22 @@ def test_human_authority_documents_preserve_runtime_boundary() -> None:
         assert "PREPARED_NOT_RENAMED" in text
         assert "appolon1908-hue/social.codestra.co" in text
 
-    assert "SOCIAL_RUNTIME_REPOSITORY_CHANGED=NO" in runbook
-    assert "SOCIAL_POSTS_PUBLISHED=0" in runbook
-    assert "PROVIDER_WRITES_ENABLED=NO_CHANGE" in runbook
-    assert "PRODUCTION_TRAFFIC_CHANGED=NO" in runbook
+    for required in (
+        "POST_RENAME_INTEGRATION_READBACK=PASS",
+        "ACTIONS_AND_REQUIRED_CHECKS=PASS",
+        "PACKAGES_AND_GHCR=PASS|N/A",
+        "DEPLOY_KEYS_APPS_WEBHOOKS=PASS|N/A",
+        "DOWNSTREAM_CONSUMERS=PASS",
+        "MERGES_UNFROZEN=PASS",
+        "RELEASE_DISPATCH_UNFROZEN=PASS",
+        "WORKFLOW_DISPATCH_UNFROZEN=PASS",
+        "ROLLBACK_UNFREEZE=PASS|N/A",
+        "SOCIAL_RUNTIME_REPOSITORY_CHANGED=NO",
+        "SOCIAL_POSTS_PUBLISHED=0",
+        "PROVIDER_WRITES_ENABLED=NO_CHANGE",
+        "PRODUCTION_TRAFFIC_CHANGED=NO",
+    ):
+        assert required in runbook
+
+    assert "Do not leave the repository frozen." in runbook
+    assert "A successful rollback must not leave normal repository operations frozen." in runbook
