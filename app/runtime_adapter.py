@@ -2,6 +2,8 @@ import os
 from typing import Any
 import httpx
 
+from .telemetry import correlation_id_context
+
 SOCIAL_RUNTIME_URL = os.getenv("SOCIAL_RUNTIME_URL", "http://social-runtime:3000")
 SOCIAL_RUNTIME_TOKEN = os.getenv("SOCIAL_RUNTIME_TOKEN")
 SOCIAL_READ_SYNC_ENABLED = os.getenv("SOCIAL_READ_SYNC_ENABLED", "false").lower() == "true"
@@ -16,8 +18,9 @@ class SocialRuntimeReadClient:
         if not SOCIAL_RUNTIME_TOKEN:
             raise RuntimeError("social_runtime_token_missing")
         headers = {"Authorization": f"Bearer {SOCIAL_RUNTIME_TOKEN}", "Accept": "application/json"}
-        if correlation_id:
-            headers["X-Correlation-ID"] = correlation_id
+        effective_correlation_id = correlation_id or correlation_id_context.get()
+        if effective_correlation_id:
+            headers["X-Correlation-ID"] = effective_correlation_id
         return headers
 
     async def get_post(self, runtime_post_id: str, correlation_id: str | None = None) -> dict[str, Any] | None:

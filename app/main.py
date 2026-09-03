@@ -1,5 +1,5 @@
-import os
 import asyncio
+import os
 from datetime import datetime, timezone
 from enum import StrEnum
 from uuid import UUID, uuid4
@@ -7,15 +7,18 @@ from uuid import UUID, uuid4
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from . import runtime_adapter
 from .db import get_session
 from .models import SocialPostModel
-from . import runtime_adapter
 from .runtime_adapter import SocialRuntimeReadClient
+from .telemetry import audit_event, configure_telemetry, install_correlation_middleware
 
 app = FastAPI(title="Codestra Social API", version="0.2.0")
+install_correlation_middleware(app)
+TELEMETRY_EXPORT_ENABLED = configure_telemetry(app)
 SOCIAL_PUBLISHING_ENABLED = (
     os.getenv("SOCIAL_PUBLISHING_ENABLED", "false").lower() == "true"
 )
@@ -27,22 +30,6 @@ BUSINESS_WRITES_ENABLED = (
 )
 SOCIAL_PUBLISHING_AVAILABLE = False
 SERVICE = "codestra-social"
-
-
-@app.middleware("http")
-async def operational_headers(request: Request, call_next):
-    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid4())
-    request.state.correlation_id = correlation_id
-    try:
-        response = await call_next(request)
-    except Exception:
-        response = JSONResponse(
-            status_code=500,
-            content={"detail": "internal_error", "correlation_id": correlation_id},
-        )
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["X-Correlation-ID"] = correlation_id
-    return response
 
 
 class PostState(StrEnum):
@@ -75,6 +62,8 @@ def health(request: Request = None) -> dict[str, object]:
         "status": "ok",
         "service": SERVICE,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "social_publishing_enabled": SOCIAL_PUBLISHING_ENABLED,
+        "social_read_sync_enabled": SOCIAL_READ_SYNC_ENABLED,
         "correlation_id": correlation_id,
     }
 
@@ -155,6 +144,8 @@ def capabilities(request: Request = None) -> dict[str, object]:
         "approvals": True,
         "engagement_sync": SOCIAL_READ_SYNC_ENABLED,
         "publishing": effective_publishing,
+        "correlation_ids": True,
+        "telemetry_export": TELEMETRY_EXPORT_ENABLED,
         "correlation_id": correlation_id,
     }
 
@@ -169,6 +160,7 @@ async def create_post(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    audit_event("post_recorded", post_id=str(row.id), state=row.state)
     return row
 
 
@@ -190,8 +182,10 @@ async def publish(
     if row is None:
         raise HTTPException(status_code=404, detail="post_not_found")
     if row.state != PostState.APPROVED.value:
+        audit_event("publish_rejected", post_id=str(row.id), reason="post_not_approved")
         raise HTTPException(status_code=409, detail="post_not_approved")
     if not (SOCIAL_PUBLISHING_ENABLED and SOCIAL_PUBLISHING_AVAILABLE):
+        audit_event("publish_rejected", post_id=str(row.id), reason="publishing_disabled")
         raise HTTPException(status_code=423, detail="social_publishing_disabled")
     raise HTTPException(status_code=501, detail="runtime_publish_not_implemented")
 
