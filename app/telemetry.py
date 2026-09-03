@@ -14,12 +14,13 @@ from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.sdk.resources import DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, Resource
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 CORRELATION_HEADER = "X-Correlation-ID"
 CORRELATION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name"
 correlation_id_context: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 audit_logger = logging.getLogger("codestra.social.audit")
 
@@ -71,7 +72,10 @@ def configure_telemetry(app: FastAPI) -> bool:
     environment = os.getenv("CODESTRA_ENVIRONMENT", "unknown").strip() or "unknown"
     provider = TracerProvider(
         resource=Resource.create(
-            {SERVICE_NAME: "codestra-social", DEPLOYMENT_ENVIRONMENT: environment}
+            {
+                SERVICE_NAME: "codestra-social",
+                DEPLOYMENT_ENVIRONMENT_NAME: environment,
+            }
         )
     )
     provider.add_span_processor(
