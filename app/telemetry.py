@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -95,13 +95,26 @@ def audit_event(event: str, **fields: object) -> None:
     audit_logger.info(json.dumps(record, sort_keys=True, separators=(",", ":")))
 
 
+def _finalize(response: Response, correlation_id: str) -> Response:
+    response.headers[CORRELATION_HEADER] = correlation_id
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def install_correlation_middleware(app: FastAPI) -> None:
     @app.middleware("http")
     async def correlation_boundary(request: Request, call_next):
         supplied = request.headers.get(CORRELATION_HEADER)
         if supplied is not None and not CORRELATION_PATTERN.fullmatch(supplied):
-            return JSONResponse(status_code=400, content={"detail": "invalid_correlation_id"})
+            correlation_id = str(uuid4())
+            response = JSONResponse(
+                status_code=400,
+                content={"detail": "invalid_correlation_id"},
+            )
+            return _finalize(response, correlation_id)
+
         correlation_id = supplied or str(uuid4())
+        request.state.correlation_id = correlation_id
         token = correlation_id_context.set(correlation_id)
         span = trace.get_current_span()
         if span.is_recording():
@@ -113,9 +126,11 @@ def install_correlation_middleware(app: FastAPI) -> None:
                 audit_event("request_failed")
                 response = JSONResponse(
                     status_code=500,
-                    content={"detail": "internal_server_error"},
+                    content={
+                        "detail": "internal_server_error",
+                        "correlation_id": correlation_id,
+                    },
                 )
-            response.headers[CORRELATION_HEADER] = correlation_id
-            return response
+            return _finalize(response, correlation_id)
         finally:
             correlation_id_context.reset(token)
