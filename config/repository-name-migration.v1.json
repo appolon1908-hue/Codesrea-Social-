@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "repository_id": 1351353723,
+  "current_repository": "appolon1908-hue/Codesrea-Social-",
+  "target_repository_after_cutover": "appolon1908-hue/Codestra-Social-Control-Plane",
+  "status": "PREPARED_NOT_RENAMED",
+  "runtime_critical": false,
+  "authority_role": "Provider-neutral social control-plane architecture",
+  "runtime_repository": "appolon1908-hue/social.codestra.co",
+  "account_authority": "appolon1908-hue/documentaions:repository-name-migration.v1.json",
+  "policy": {
+    "current_repository_remains_operational": true,
+    "target_repository_forbidden_in_automation_before_cutover": true,
+    "same_repository_id_required_after_cutover": true,
+    "historical_evidence_immutable": true,
+    "all_inventoried_integrations_require_post_rename_readback": true,
+    "runtime_repository_must_remain_separate": true,
+    "runtime_repository_must_remain_unchanged": true,
+    "prechange_operation_state_must_be_recorded": true,
+    "success_path_must_restore_prechange_operation_state": true,
+    "rollback_path_must_restore_prechange_operation_state": true,
+    "rename_authorizes_deployment": false,
+    "rename_authorizes_publishing": false
+  }
+}
