@@ -126,10 +126,7 @@ def install_correlation_middleware(app: FastAPI) -> None:
                 audit_event("request_failed")
                 response = JSONResponse(
                     status_code=500,
-                    content={
-                        "detail": "internal_server_error",
-                        "correlation_id": correlation_id,
-                    },
+                    content={"detail": "internal_server_error"},
                 )
             return _finalize(response, correlation_id)
         finally:
