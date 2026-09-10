@@ -65,6 +65,8 @@ def _trace_endpoint(base: str) -> str:
 
 
 def configure_telemetry(app: FastAPI) -> bool:
+    if os.getenv("TELEMETRY_EXPORT_ENABLED", "false").lower() != "true":
+        return False
     configured = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
     if not configured:
         return False

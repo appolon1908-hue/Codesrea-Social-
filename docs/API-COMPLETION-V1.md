@@ -41,3 +41,5 @@ CONTENT_PUBLISHED=0
 RUNTIME_DEPLOYED=false
 PRODUCTION_CHANGED=false
 ```
+
+Telemetry export requires both `TELEMETRY_EXPORT_ENABLED=true` and an approved private `OTEL_EXPORTER_OTLP_ENDPOINT`. Setting an endpoint alone leaves export disabled.

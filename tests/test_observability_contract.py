@@ -16,6 +16,7 @@ from app.runtime_adapter import SocialRuntimeReadClient
 from app.telemetry import (
     audit_event,
     correlation_id_context,
+    configure_telemetry,
     install_correlation_middleware,
     private_otlp_endpoint,
 )
@@ -144,3 +145,18 @@ def test_existing_application_exposes_correlation_header_without_effects():
     assert response.headers["X-Correlation-ID"]
     assert response.json()["social_publishing_enabled"] is False
     assert response.json()["social_read_sync_enabled"] is False
+
+
+def test_endpoint_alone_does_not_enable_telemetry_export(monkeypatch):
+    monkeypatch.delenv("TELEMETRY_EXPORT_ENABLED", raising=False)
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://alloy:4318")
+    assert configure_telemetry(FastAPI()) is False
+    monkeypatch.setenv("TELEMETRY_EXPORT_ENABLED", "false")
+    assert configure_telemetry(FastAPI()) is False
+
+
+def test_explicit_export_still_requires_private_authority(monkeypatch):
+    monkeypatch.setenv("TELEMETRY_EXPORT_ENABLED", "true")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://telemetry.example.com")
+    with pytest.raises(RuntimeError):
+        configure_telemetry(FastAPI())
